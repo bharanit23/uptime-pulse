@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: uptime-pulse
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /api/dashboard/stats
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: SPRING_DATASOURCE_DRIVER
+        value: org.postgresql.Driver
