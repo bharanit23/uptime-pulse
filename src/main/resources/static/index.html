@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UptimePulse — Service Health & Availability</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='22 12 18 12 15 21 9 3 6 12 2 12'/></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-wrap" onclick="showDashboardView()">
+        <div class="brand-icon">
+          <i data-lucide="activity" style="width: 15px; height: 15px;"></i>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="brand-title">UptimePulse</span>
+          <span class="badge-tag">production</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="viewToggleBtn" onclick="toggleStatusView()" class="btn btn-secondary">
+          <i data-lucide="globe" style="width: 13px; height: 13px;"></i>
+          <span id="viewToggleText">Public Status</span>
+        </button>
+        <button onclick="openModal()" class="btn btn-primary">
+          <i data-lucide="plus" style="width: 13px; height: 13px;"></i>
+          <span>Add Monitor</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-wrapper">
+
+    <!-- Global State Banner -->
+    <div id="statusBanner" class="status-banner">
+      <div class="banner-left">
+        <span id="bannerDot" class="status-dot green"></span>
+        <span id="bannerTitle" class="banner-title">All systems operational</span>
+        <span style="color: var(--border-strong);">&bull;</span>
+        <span id="bannerSub" class="banner-subtitle">All scheduled health probes responding within thresholds</span>
+      </div>
+      <div class="banner-right">
+        <span>Sync in <span id="countdownText" style="color: var(--text-main); font-weight: 600;">10s</span></span>
+        <button onclick="loadDashboard()" class="btn-icon" title="Refresh">
+          <i data-lucide="rotate-cw" style="width: 12px; height: 12px;"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary KPIs -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Uptime (24h)</div>
+        <div class="kpi-value-row">
+          <span id="metricUptime" class="kpi-value">100.0%</span>
+          <span class="kpi-sub" style="color: var(--color-green);">SLA PASS</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">Active Targets</div>
+        <div class="kpi-value-row">
+          <span id="metricActive" class="kpi-value">0</span>
+          <span class="kpi-sub"><span id="metricDown" style="color: var(--color-red);">0</span> failed</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">Average Latency</div>
+        <div class="kpi-value-row">
+          <span id="metricLatency" class="kpi-value">0 ms</span>
+          <span id="latencyTier" class="kpi-sub">Nominal</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">Unresolved Outages</div>
+        <div class="kpi-value-row">
+          <span id="metricIncidents" class="kpi-value">0</span>
+          <span class="kpi-sub">0 open</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard Section -->
+    <section id="dashboardSection">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="search-input-wrap">
+          <i data-lucide="search" style="width: 13px; height: 13px;"></i>
+          <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Filter by name or endpoint..." class="search-input">
+        </div>
+
+        <div class="filter-group">
+          <button onclick="setFilter('ALL')" id="filterALL" class="filter-btn active">All</button>
+          <button onclick="setFilter('OPERATIONAL')" id="filterOPERATIONAL" class="filter-btn">Healthy</button>
+          <button onclick="setFilter('DEGRADED')" id="filterDEGRADED" class="filter-btn">Degraded</button>
+          <button onclick="setFilter('DOWN')" id="filterDOWN" class="filter-btn">Outages</button>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th width="120">Status</th>
+              <th>Service / Target</th>
+              <th width="80">Method</th>
+              <th width="110">Latency</th>
+              <th width="140">24h History</th>
+              <th width="100">Uptime</th>
+              <th width="110">Last Probe</th>
+              <th width="120" style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="monitorsTableBody">
+            <tr>
+              <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-dim);">
+                Loading monitor records...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Public Status Section -->
+    <section id="publicStatusSection" style="display: none; flex-direction: column; gap: 16px;">
+      <div class="table-card" style="padding: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <h2 style="font-size: 14px; font-weight: 600;">System Services Overview</h2>
+          <span class="badge-tag">live report</span>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+          Live availability metrics calculated from automated probes across registered endpoints.
+        </p>
+
+        <div id="publicServicesList" style="display: flex; flex-direction: column; divide-y: 1px solid var(--border-subtle);">
+          <!-- Dynamic public rows -->
+        </div>
+      </div>
+
+      <div class="table-card" style="padding: 20px;">
+        <h3 style="font-size: 11px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); margin-bottom: 12px;">
+          Incident History
+        </h3>
+        <div id="incidentsList" style="font-size: 12px; color: var(--text-muted);">
+          <p style="color: var(--text-dim);">No incidents reported within the past 30 days.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Create Monitor Modal -->
+  <div id="createModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">Register Health Check Target</span>
+        <button onclick="closeModal()" class="btn-icon">
+          <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+        </button>
+      </div>
+
+      <form id="monitorForm" onsubmit="handleSaveMonitor(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Service Identifier</label>
+            <input type="text" id="inputName" required placeholder="e.g. Auth Gateway" class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Endpoint URL</label>
+            <input type="url" id="inputUrl" required placeholder="https://api.example.com/health" class="form-control" style="font-family: var(--font-mono);">
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">HTTP Method</label>
+              <select id="inputMethod" class="form-control">
+                <option value="GET">GET</option>
+                <option value="HEAD">HEAD</option>
+                <option value="POST">POST</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Expected Status</label>
+              <input type="number" id="inputExpectedStatus" value="200" min="100" max="599" required class="form-control" style="font-family: var(--font-mono);">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Check Interval</label>
+            <select id="inputInterval" class="form-control">
+              <option value="30">Every 30 seconds</option>
+              <option value="60" selected>Every 1 minute</option>
+              <option value="300">Every 5 minutes</option>
+              <option value="600">Every 10 minutes</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="saveMonitorBtn" class="btn btn-primary">Save Target</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Details / Metrics Modal -->
+  <div id="detailsModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card wide">
+      <div class="modal-header">
+        <div>
+          <span id="modalMonitorName" class="modal-title">Service Details</span>
+          <div id="modalMonitorUrl" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 2px;">https://...</div>
+        </div>
+        <button onclick="closeDetailsModal()" class="btn-icon">
+          <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div style="background-color: var(--bg-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 11px; font-weight: 500; color: var(--text-muted);">Response Duration History</span>
+            <span id="chartStats" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-main);"></span>
+          </div>
+          <div style="height: 190px;">
+            <canvas id="latencyChart"></canvas>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">
+            Probe Log History
+          </div>
+          <div style="border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); overflow: hidden; max-height: 160px; overflow-y: auto;">
+            <table class="data-table" style="font-size: 11px;">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>HTTP Code</th>
+                  <th>Latency</th>
+                  <th>Outcome</th>
+                </tr>
+              </thead>
+              <tbody id="logsTableBody" style="font-family: var(--font-mono);">
+                <!-- Dynamic logs -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <div>
+        <span>UptimePulse</span> &bull; Maintained by <a href="https://github.com/bharanit23" target="_blank" style="text-decoration: underline;">Bharani</a>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/bharanit23/uptime-pulse" target="_blank">GitHub</a>
+        <a href="/api/monitors" target="_blank">REST API</a>
+        <a href="/api/status/public" target="_blank">Status Feed</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
